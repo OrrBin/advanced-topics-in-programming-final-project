@@ -71,7 +71,7 @@ namespace shipping {
         X shipX;
         Y shipY;
         Height shipHeight;
-        std::vector<std::vector<int>> emptySpacesAtPosition;
+        std::vector<std::vector<int>> spacesLeftAtPosition;
         std::vector<std::vector<Container>> containers;
 
         Grouping<Container> groupingFunctions;
@@ -82,7 +82,7 @@ namespace shipping {
     public:
         Ship(X x, Y y, Height height) noexcept
                 : shipX(x), shipY(y), shipHeight(height) {
-            emptySpacesAtPosition = std::vector<std::vector<int>>(x, std::vector<int>(y, height));
+            spacesLeftAtPosition = std::vector<std::vector<int>>(x, std::vector<int>(y, height));
             containers.resize(x * y);
 
             for (auto &container: containers) {
@@ -95,7 +95,7 @@ namespace shipping {
             validateRestrictions(restrictions);
             for (Position res : restrictions) {
                 int resX = std::get<0>(res), resY = std::get<1>(res), resHeight = std::get<2>(res);
-                emptySpacesAtPosition[resX][resY] = resHeight;
+                spacesLeftAtPosition[resX][resY] = resHeight;
             }
         }
 
@@ -186,12 +186,12 @@ namespace shipping {
          */
         void load(X x, Y y, Container c) noexcept(false) {
             validateXY(x, y);
-            if (emptySpacesAtPosition[x][y] == 0) {
+            if (spacesLeftAtPosition[x][y] == 0) {
                 throw BadShipOperationException("Can't load container, no space left in position : (" + std::to_string(x) + ", " + std::to_string(y) + ")");
             }
 
             getContainers(x, y).push_back(c);
-            --emptySpacesAtPosition[x][y];
+            --spacesLeftAtPosition[x][y];
             int height = getContainers(x, y).size() - 1;
             addContainerToAllGroups(getContainers(x, y).back(), {X{x}, Y{y}, Height{height}});
         }
@@ -211,7 +211,7 @@ namespace shipping {
             removeContainerFromAllGroups(container, {X{x}, Y{y}, Height{height}});
 
             getContainers(x, y).pop_back();
-            ++emptySpacesAtPosition[x][y];
+            ++spacesLeftAtPosition[x][y];
 
             return container;
         }
@@ -234,7 +234,7 @@ namespace shipping {
                 return;
             }
 
-            if (emptySpacesAtPosition[to_x][to_y] == 0) {
+            if (spacesLeftAtPosition[to_x][to_y] == 0) {
                 throw BadShipOperationException(
                         "Can't move container, no space left in target position : (" + std::to_string(to_x) + ", " + std::to_string(to_y) + ")");
             }
