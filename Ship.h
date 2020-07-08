@@ -1,4 +1,5 @@
 // orrbenyamini 316607696
+
 #ifndef FINAL_PROJECT_SHIP_H
 
 #include <unordered_map>
@@ -44,12 +45,12 @@ namespace shipping {
     /**
      * Exception indicating bad operation occurred
      */
-    class BadShipOperationException {
+    class BadShipOperationException : std::exception {
     private:
         std::string message;
 
     public:
-        explicit BadShipOperationException(std::string msg) : message(msg) {}
+        explicit BadShipOperationException(std::string msg) : message(std::move(msg)) {}
     };
 
 
@@ -58,99 +59,15 @@ namespace shipping {
 
     template<typename Container>
     class Ship {
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    public: // Forward Decelerations
 
-        class ShipCargoIterator {
-            using CargoIterator = typename std::vector<std::vector<Container>>::const_iterator;
-            using PositionIter = typename std::vector<Container>::const_iterator;
+        class ShipCargoIterator;
 
-            CargoIterator positionsIterator;  // Iterates over non-empty positions in the ship
-            CargoIterator positionsIteratorEnd;
-            PositionIter currentPositionIterator;  // Iterates over containers in the current position
+        class GroupView;
 
-            void progressIterator() {
-                if (++currentPositionIterator != (*positionsIterator).end()) {
-                    return;
-                }
+        class PositionView;
 
-                while (++positionsIterator != positionsIteratorEnd && (*positionsIterator).empty());  // move to the next non-empty position
-
-                if (positionsIterator != positionsIteratorEnd) {  // reached a non-empty position
-                    currentPositionIterator = (*positionsIterator).begin();
-                }
-            }
-
-        public:
-            /**
-             * Iterator that iterates over all containers on the ship
-             * @param itr_start
-             * @param itr_end
-             */
-            ShipCargoIterator(CargoIterator itr_start, CargoIterator itr_end)
-                    : positionsIterator(itr_start), positionsIteratorEnd(itr_end) {
-                if (itr_start != itr_end) {  // not an 'end' iterator
-                    currentPositionIterator = (*itr_start).begin() - 1;
-                    progressIterator();
-                }
-            }
-
-
-            ShipCargoIterator operator++() {
-                progressIterator();
-                return *this;
-            }
-
-            const Container &operator*() const {
-                return *currentPositionIterator;
-            }
-
-            bool operator!=(ShipCargoIterator other) {
-                return positionsIterator != other.positionsIterator;
-            }
-        };
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        class PositionView {
-            const std::vector<Container> *containers = nullptr;
-            using iterType = typename std::vector<Container>::const_reverse_iterator;
-
-        public:
-
-            PositionView(const std::vector<Container> &containers) : containers(&containers) {}
-
-            PositionView() {};
-
-            auto begin() const {
-                return containers ? containers->rbegin() : iterType();
-            }
-
-            auto end() const {
-                return containers ? containers->rend() : iterType();
-            }
-        };
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        class GroupView {
-            const std::map<Position, const Container &> *pGroup = nullptr;
-            using iterType = typename std::map<Position, const Container &>::const_iterator;
-        public:
-            GroupView(const std::map<Position, const Container &> &group) : pGroup(&group) {}
-
-            GroupView() {}
-
-            auto begin() const {
-                return pGroup ? pGroup->begin() : iterType{};
-            }
-
-            auto end() const {
-                return pGroup ? pGroup->end() : iterType{};
-            }
-        };
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+    private:
         X shipX;
         Y shipY;
         Height shipHeight;
@@ -168,12 +85,12 @@ namespace shipping {
             emptySpacesAtPosition = std::vector<std::vector<int>>(x, std::vector<int>(y, height));
             containers.resize(x * y);
 
-            for (auto& container: containers) {
+            for (auto &container: containers) {
                 container.reserve(height + 1);
             }
         }
 
-        Ship(X x, Y y, Height max_height, std::vector<Position> restrictions) noexcept(false)
+        Ship(X x, Y y, Height max_height, const std::vector<Position> &restrictions) noexcept(false)
                 : Ship(x, y, max_height) {
             validateRestrictions(restrictions);
             for (Position res : restrictions) {
@@ -182,7 +99,7 @@ namespace shipping {
             }
         }
 
-        Ship(X x, Y y, Height max_height, std::vector<Position> restrictions, Grouping<Container> groupingFunctions) noexcept(false)
+        Ship(X x, Y y, Height max_height, const std::vector<Position> &restrictions, Grouping<Container> groupingFunctions) noexcept(false)
                 : Ship(x, y, max_height, restrictions) {
             this->groupingFunctions = groupingFunctions;
         }
@@ -230,7 +147,7 @@ namespace shipping {
             }
         }
 
-        const void validateXY(int x, int y) noexcept(false) {
+        void validateXY(int x, int y) const noexcept(false) {
             if (x < 0 || x >= shipX)
                 throw BadShipOperationException(
                         "received position with bad X value. X value is" + std::to_string(x) + ", ship X is " + std::to_string(shipX));
@@ -348,21 +265,112 @@ namespace shipping {
         GroupView getContainersViewByGroup(const std::string &groupingName, const std::string &groupName) const {
             auto itr = groups.find(groupingName);
             if (itr == groups.end() && groupingFunctions.find(groupingName) != groupingFunctions.end()) {
-                auto [insert_itr, _] = groups.insert({groupingName, Group{}});
+                auto[insert_itr, _] = groups.insert({groupingName, Group{}});
                 itr = insert_itr;
             }
             if (itr != groups.end()) {
                 const auto &grouping = itr->second;
                 auto itr2 = grouping.find(groupName);
                 if (itr2 == grouping.end()) {
-                    auto [insert_itr, _] = itr->second.insert({groupName, PositionToContainer {}});
-                     itr2 = insert_itr;
+                    auto[insert_itr, _] = itr->second.insert({groupName, PositionToContainer{}});
+                    itr2 = insert_itr;
                 }
                 return GroupView(itr2->second);
             }
             return GroupView{};
         }
 
+
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        class ShipCargoIterator {
+            using CargoIterator = typename std::vector<std::vector<Container>>::const_iterator;
+            using PositionIter = typename std::vector<Container>::const_iterator;
+
+            CargoIterator positionsIterator;  // Iterates over non-empty positions in the ship
+            CargoIterator positionsIteratorEnd;
+            PositionIter currentPositionIterator;  // Iterates over containers in the current position
+
+            void progressIterator() {
+                if (++currentPositionIterator != (*positionsIterator).end()) {
+                    return;
+                }
+
+                while (++positionsIterator != positionsIteratorEnd && (*positionsIterator).empty());  // move to the next non-empty position
+
+                if (positionsIterator != positionsIteratorEnd) {  // reached a non-empty position
+                    currentPositionIterator = (*positionsIterator).begin();
+                }
+            }
+
+        public:
+            /**
+             * Iterator that iterates over all containers on the ship
+             * @param itr_start
+             * @param itr_end
+             */
+            ShipCargoIterator(CargoIterator itr_start, CargoIterator itr_end)
+                    : positionsIterator(itr_start), positionsIteratorEnd(itr_end) {
+                if (itr_start != itr_end) {  // not an 'end' iterator
+                    currentPositionIterator = (*itr_start).begin() - 1;
+                    progressIterator();
+                }
+            }
+
+
+            ShipCargoIterator operator++() {
+                progressIterator();
+                return *this;
+            }
+
+            const Container &operator*() const {
+                return *currentPositionIterator;
+            }
+
+            bool operator!=(ShipCargoIterator other) {
+                return positionsIterator != other.positionsIterator;
+            }
+        };
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        class PositionView {
+            const std::vector<Container> *containers = nullptr;
+            using iterType = typename std::vector<Container>::const_reverse_iterator;
+
+        public:
+
+            explicit PositionView(const std::vector<Container> &containers) : containers(&containers) {}
+
+            PositionView() = default;;
+
+            auto begin() const {
+                return containers ? containers->rbegin() : iterType();
+            }
+
+            auto end() const {
+                return containers ? containers->rend() : iterType();
+            }
+        };
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        class GroupView {
+            const std::map<Position, const Container &> *pGroup = nullptr;
+            using iterType = typename std::map<Position, const Container &>::const_iterator;
+        public:
+            explicit GroupView(const std::map<Position, const Container &> &group) : pGroup(&group) {}
+
+            GroupView() = default;
+
+            auto begin() const {
+                return pGroup ? pGroup->begin() : iterType{};
+            }
+
+            auto end() const {
+                return pGroup ? pGroup->end() : iterType{};
+            }
+        };
     };
 }
 #define FINAL_PROJECT_SHIP_H
