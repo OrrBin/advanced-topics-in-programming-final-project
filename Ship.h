@@ -1,4 +1,4 @@
-// orrbenyamini 316607696
+//orrbenyamini 316607696
 
 #ifndef FINAL_PROJECT_SHIP_H
 
@@ -9,8 +9,6 @@
 #include <unordered_set>
 #include <set>
 #include <map>
-
-#pragma once
 
 namespace shipping {
     class NamedIntegerType {
