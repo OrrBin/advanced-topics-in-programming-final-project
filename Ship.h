@@ -134,12 +134,15 @@ namespace shipping {
             for (Position res : restrictions) {
                 int x = std::get<0>(res), y = std::get<1>(res), height = std::get<2>(res);
                 validateXY(x, y);
-                if (height < 0 || height >= shipY)
-                    if (xyHistory.find({x, y}) != xyHistory.end()) {
-                        std::string msg = "received duplicate restriction for X,Y : (" + std::to_string(x) + ", " +
-                                          std::to_string(y) + ")";
-                        throw BadShipOperationException(msg);
-                    }
+                if (height < 0 || height >= shipHeight) {
+                    throw BadShipOperationException(
+                            "received position with bad height value. Height value is" + std::to_string(height) + ", ship X is " + std::to_string(shipHeight));
+                }
+                if (xyHistory.find({x, y}) != xyHistory.end()) {
+                    std::string msg = "received duplicate restriction for X,Y : (" + std::to_string(x) + ", " +
+                                      std::to_string(y) + ")";
+                    throw BadShipOperationException(msg);
+                }
 
                 xyHistory.insert({x, y});
             }
@@ -160,9 +163,7 @@ namespace shipping {
          */
         void addContainerToAllGroups(Container &container, Position pos) {
             for (auto &groupNameAndFunction: groupingFunctions) {
-                const std::string &groupName = groupNameAndFunction.first;
-                auto &groupingFunc = groupNameAndFunction.second;
-                groups[groupName][groupingFunc(container)].insert({pos, container});
+                groups[groupNameAndFunction.first][groupNameAndFunction.second(container)].insert({pos, container});
             }
         }
 
@@ -171,9 +172,7 @@ namespace shipping {
          */
         void removeContainerFromAllGroups(Container &container, Position pos) {
             for (auto &groupNameAndFunction: groupingFunctions) {
-                const std::string &groupName = groupNameAndFunction.first;
-                auto &groupingFunc = groupNameAndFunction.second;
-                groups[groupName][groupingFunc(container)].erase(pos);
+                groups[groupNameAndFunction.first][groupNameAndFunction.second(container)].erase(pos);
             }
         }
 
@@ -218,26 +217,30 @@ namespace shipping {
          * Moves container from given source position to given target position
          * If there is container in the source position and space in the target position
          */
-        void move(X from_x, Y from_y, X to_x, Y to_y) noexcept(false) {
+        void move(X fromX, Y fromY, X toX, Y toY) noexcept(false) {
 
-            validateXY(from_x, from_y);
-            validateXY(to_x, to_y);
+            validateXY(fromX, fromY);
+            validateXY(toX, toY);
 
-            if (getContainers(from_x, from_y).empty()) {
+            // First check if there is container to move
+            if (getContainers(fromX, fromY).empty()) {
                 throw BadShipOperationException(
-                        "Can't move container, no container found in source position : (" + std::to_string(from_x) + ", " + std::to_string(from_y) + ")");
+                        "Can't move container, no container found in source position : (" + std::to_string(fromX) + ", " + std::to_string(fromY) + ")");
             }
 
-            if (from_x == to_x && from_y == to_y) {
+            // If moving from position to the same position, do nothing
+            if (fromX == toX && fromY == toY) {
                 return;
             }
 
-            if (spacesLeftAtPosition[to_x][to_y] == 0) {
+            // Check that there is space in the target position
+            if (spacesLeftAtPosition[toX][toY] == 0) {
                 throw BadShipOperationException(
-                        "Can't move container, no space left in target position : (" + std::to_string(to_x) + ", " + std::to_string(to_y) + ")");
+                        "Can't move container, no space left in target position : (" + std::to_string(toX) + ", " + std::to_string(toY) + ")");
             }
 
-            load(to_x, to_y, unload(from_x, from_y));
+            // Finally unload and then load
+            load(toX, toY, unload(fromX, fromY));
         }
 
         ShipCargoIterator begin() const {
@@ -278,8 +281,6 @@ namespace shipping {
             return GroupView{};
         }
 
-
-
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         class ShipCargoIterator {
@@ -287,17 +288,17 @@ namespace shipping {
             using PositionIter = typename std::vector<Container>::const_iterator;
 
             CargoIterator positionsIterator;  // Iterates over non-empty positions in the ship
-            CargoIterator positionsIteratorEnd;
+            CargoIterator positionsIteratorEnd; // End of this iterator
             PositionIter currentPositionIterator;  // Iterates over containers in the current position
 
-            void progressIterator() {
+            void setIteratorToNonEmptyPosition() {
                 if (++currentPositionIterator != (*positionsIterator).end()) {
                     return;
                 }
 
-                while (++positionsIterator != positionsIteratorEnd && (*positionsIterator).empty());  // move to the next non-empty position
+                while (++positionsIterator != positionsIteratorEnd && (*positionsIterator).empty());
 
-                if (positionsIterator != positionsIteratorEnd) {  // reached a non-empty position
+                if (positionsIterator != positionsIteratorEnd) {
                     currentPositionIterator = (*positionsIterator).begin();
                 }
             }
@@ -310,15 +311,14 @@ namespace shipping {
              */
             ShipCargoIterator(CargoIterator itr_start, CargoIterator itr_end)
                     : positionsIterator(itr_start), positionsIteratorEnd(itr_end) {
-                if (itr_start != itr_end) {  // not an 'end' iterator
+                if (itr_start != itr_end) {
                     currentPositionIterator = (*itr_start).begin() - 1;
-                    progressIterator();
+                    setIteratorToNonEmptyPosition();
                 }
             }
 
-
             ShipCargoIterator operator++() {
-                progressIterator();
+                setIteratorToNonEmptyPosition();
                 return *this;
             }
 
