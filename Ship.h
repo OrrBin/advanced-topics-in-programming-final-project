@@ -259,7 +259,7 @@ namespace shipping {
          * Returns view of containers in the given (x, y) position
          */
         PositionView getContainersViewByPosition(X x, Y y) const {
-            if (x < 0 || x >= shipX || y < 0 || y >= shipY)
+            if (x < 0 || x >= shipX || y < 0 || y >= shipY) // Bad (x, y) given
                 return PositionView();
             return PositionView(getContainers(x, y));
         }
