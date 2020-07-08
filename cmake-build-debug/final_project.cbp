@@ -82,7 +82,16 @@
 				</MakeCommands>
 			</Target>
 		</Build>
+		<Unit filename="D:/projects/final_project/Ship.h">
+			<Option target="final_project"/>
+		</Unit>
+		<Unit filename="D:/projects/final_project/ShipYahav.h">
+			<Option target="final_project"/>
+		</Unit>
 		<Unit filename="D:/projects/final_project/main.cpp">
+			<Option target="final_project"/>
+		</Unit>
+		<Unit filename="D:/projects/final_project/tmp.h">
 			<Option target="final_project"/>
 		</Unit>
 		<Unit filename="D:/projects/final_project/CMakeLists.txt">

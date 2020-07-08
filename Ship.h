@@ -83,8 +83,9 @@ namespace shipping {
             spacesLeftAtPosition = std::vector<std::vector<int>>(x, std::vector<int>(y, height));
             containers.resize(x * y);
 
-            for (auto &container: containers) {
-                container.reserve(height + 1);
+            // Reserve enough space for each position, otherwise the vector gets reallocated and the Views don't work well
+            for (std::vector<Container> &vec: containers) {
+                vec.reserve(height + 1);
             }
         }
 
@@ -148,6 +149,9 @@ namespace shipping {
             }
         }
 
+        /**
+         * Validates (x, y) are legal
+         */
         void validateXY(int x, int y) const noexcept(false) {
             if (x < 0 || x >= shipX)
                 throw BadShipOperationException(
@@ -283,32 +287,38 @@ namespace shipping {
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+        /**
+         * Iterator that iterates over all containers in the ship
+         */
         class ShipCargoIterator {
             using CargoIterator = typename std::vector<std::vector<Container>>::const_iterator;
-            using PositionIter = typename std::vector<Container>::const_iterator;
+            using PositionIterator = typename std::vector<Container>::const_iterator;
 
             CargoIterator positionsIterator;  // Iterates over non-empty positions in the ship
             CargoIterator positionsIteratorEnd; // End of this iterator
-            PositionIter currentPositionIterator;  // Iterates over containers in the current position
+            PositionIterator currentPositionIterator;  // Iterates over containers in the current position
 
             void setIteratorToNonEmptyPosition() {
-                if (++currentPositionIterator != (*positionsIterator).end()) {
+                //progress current position iterator
+                ++currentPositionIterator;
+                // Check if we have more containers in the current position, if yes return
+                if (currentPositionIterator != (*positionsIterator).end()) {
                     return;
                 }
 
-                while (++positionsIterator != positionsIteratorEnd && (*positionsIterator).empty());
+                // Find next not empty position
+                ++positionsIterator;
+                while (positionsIterator != positionsIteratorEnd && (*positionsIterator).empty()) {
+                    ++positionsIterator;
+                }
 
+                // If we found not empty position set currentPositionIterator
                 if (positionsIterator != positionsIteratorEnd) {
                     currentPositionIterator = (*positionsIterator).begin();
                 }
             }
 
         public:
-            /**
-             * Iterator that iterates over all containers on the ship
-             * @param itr_start
-             * @param itr_end
-             */
             ShipCargoIterator(CargoIterator itr_start, CargoIterator itr_end)
                     : positionsIterator(itr_start), positionsIteratorEnd(itr_end) {
                 if (itr_start != itr_end) {
@@ -332,6 +342,10 @@ namespace shipping {
         };
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * View for a specific position containers
+         */
         class PositionView {
             const std::vector<Container> *containers = nullptr;
             using iterType = typename std::vector<Container>::const_reverse_iterator;
@@ -353,6 +367,9 @@ namespace shipping {
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+        /**
+         * View for a specific group containers
+         */
         class GroupView {
             const std::map<Position, const Container &> *pGroup = nullptr;
             using iterType = typename std::map<Position, const Container &>::const_iterator;
