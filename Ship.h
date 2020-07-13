@@ -11,30 +11,25 @@
 #include <map>
 
 namespace shipping {
-    class NamedIntegerType {
-        int value;
-
+    template<typename T> class NamedType {
+        T t;
     public:
-
-        explicit NamedIntegerType(int value) : value{value} {}
-
-        operator int() const { return value; }
-
-        bool operator<(const NamedIntegerType &other) {
-            return value < other.value;
+        explicit NamedType(T t): t(t) {}
+        operator T() const {
+            return t;
         }
     };
 
-    class X : public NamedIntegerType {
-        using NamedIntegerType::NamedIntegerType;
+    class X : public NamedType<int> {
+        using NamedType::NamedType;
     };
 
-    class Y : public NamedIntegerType {
-        using NamedIntegerType::NamedIntegerType;
+    class Y : public NamedType<int> {
+        using NamedType::NamedType;
     };
 
-    class Height : public NamedIntegerType {
-        using NamedIntegerType::NamedIntegerType;
+    class Height : public NamedType<int> {
+        using NamedType::NamedType;
     };
 
     using Position = std::tuple<X, Y, Height>;
@@ -113,20 +108,6 @@ namespace shipping {
 
     private:
         /**
-         * Returns the containers from the given (x, y) position - const version
-         */
-        const std::vector<Container> &getContainers(int x, int y) const {
-            return containers[x * shipY + y];
-        }
-
-        /**
-         * Returns the containers from the given (x, y) position
-         */
-        std::vector<Container> &getContainers(int x, int y) {
-            return containers[x * shipY + y];
-        }
-
-        /**
          * Validates the given restrictions
          */
         void validateRestrictions(const std::vector<Position> &restrictions) noexcept(false) {
@@ -163,6 +144,20 @@ namespace shipping {
         }
 
         /**
+         * Returns the containers from the given (x, y) position - const version
+         */
+        const std::vector<Container> &getContainers(int x, int y) const {
+            return containers[x * shipY + y];
+        }
+
+        /**
+         * Returns the containers from the given (x, y) position
+         */
+        std::vector<Container> &getContainers(int x, int y) {
+            return containers[x * shipY + y];
+        }
+
+        /**
          * Adds container to all relevant groups by it's position
          */
         void addContainerToAllGroups(Container &container, Position pos) {
@@ -194,7 +189,8 @@ namespace shipping {
             getContainers(x, y).push_back(c);
             --spacesLeftAtPosition[x][y];
             int height = getContainers(x, y).size() - 1;
-            addContainerToAllGroups(getContainers(x, y).back(), {X{x}, Y{y}, Height{height}});
+            auto &topContainer = getContainers(x, y).back();
+            addContainerToAllGroups(topContainer, {X{x}, Y{y}, Height{height}});
         }
 
         /**
@@ -208,7 +204,7 @@ namespace shipping {
             }
 
             int height = getContainers(x, y).size() - 1;
-            Container container = getContainers(x, y).back();
+            auto &container = getContainers(x, y).back();
             removeContainerFromAllGroups(container, {X{x}, Y{y}, Height{height}});
 
             getContainers(x, y).pop_back();
@@ -244,7 +240,8 @@ namespace shipping {
             }
 
             // Finally unload and then load
-            load(toX, toY, unload(fromX, fromY));
+            auto container = unload(fromX, fromY);
+            load(toX, toY, container);
         }
 
         ShipCargoIterator begin() const {
@@ -261,7 +258,9 @@ namespace shipping {
         PositionView getContainersViewByPosition(X x, Y y) const {
             if (x < 0 || x >= shipX || y < 0 || y >= shipY) // Bad (x, y) given
                 return PositionView();
-            return PositionView(getContainers(x, y));
+
+            auto &xyContainers = getContainers(x, y);
+            return PositionView(xyContainers);
         }
 
         /**
@@ -354,7 +353,7 @@ namespace shipping {
 
             explicit PositionView(const std::vector<Container> &containers) : containers(&containers) {}
 
-            PositionView() = default;;
+            PositionView() = default;
 
             auto begin() const {
                 return containers ? containers->rbegin() : iterType();
